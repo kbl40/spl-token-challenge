@@ -1,4 +1,5 @@
 import { initializeKeypair } from "./initializeKeypair"
+import createMint from "./createMint"
 import * as web3 from "@solana/web3.js"
 import * as token from '@solana/spl-token'
 import {
@@ -20,7 +21,7 @@ async function createNewMint(
   connection: web3.Connection,
   payer: web3.Keypair,
   mintAuthority: web3.PublicKey,
-  freezeAuthority: web3.PublicKey,
+  freezeAuthority: web3.PublicKey | null,
   decimals: number
 ) {
   const tokenMint = await token.createMint(

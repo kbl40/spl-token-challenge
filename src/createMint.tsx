@@ -41,4 +41,4 @@ export async function createMint(
     return keypair.publicKey 
 }
 
-export default function createMint
+export default createMint
