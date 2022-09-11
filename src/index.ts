@@ -2,12 +2,17 @@ import { initializeKeypair } from "./initializeKeypair"
 import createMint from "./createMint"
 import * as web3 from "@solana/web3.js"
 import {
-  PublicKey
+  PublicKey,
+  Signer,
 } from '@solana/web3.js'
 import { 
   ACCOUNT_SIZE,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
   createInitializeAccountInstruction,
   createInitializeMintInstruction, 
+  createMintToInstruction, 
+  getAssociatedTokenAddress, 
   getMinimumBalanceForRentExemptMint, 
   MINT_SIZE, 
   TOKEN_PROGRAM_ID } from '@solana/spl-token'
@@ -34,6 +39,9 @@ async function main() {
 
   const programId = TOKEN_PROGRAM_ID
   const accountProgramId = TOKEN_PROGRAM_ID
+  const associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID
+  const mintToProgramId = TOKEN_PROGRAM_ID
+
   const decimals = 2
 
   console.log("PublicKey:", user.publicKey.toBase58())
@@ -41,12 +49,17 @@ async function main() {
   const lamportsMint = await token.getMinimumBalanceForRentExemptMint(connection)
   const lamportsAccount = await token.getMinimumBalanceForRentExemptAccount(connection)
 
-  // const associatedTokenAccount = await token.createAssociatedTokenAccount(
-  //   connection,
-  //   user,
-  //   keypair.publicKey,
-  //   user.publicKey
-  // )
+  const associatedToken = await getAssociatedTokenAddress(
+    mintKeypair.publicKey,
+    user.publicKey,
+    false,
+    programId,
+    associatedTokenProgramId
+  )
+
+
+
+  const mintInfo = await token.getMint(connection, mintKeypair.publicKey)
 
   const transaction = new web3.Transaction().add(
     // Create Mint Account
@@ -79,8 +92,26 @@ async function main() {
       mintKeypair.publicKey,
       user.publicKey,
       accountProgramId
+    ),
+    // Create the Associated Token Account
+    createAssociatedTokenAccountInstruction(
+      user.publicKey,
+      associatedToken,
+      user.publicKey,
+      mintKeypair.publicKey,
+      programId,
+      associatedTokenProgramId
+    ),
+    // Mint tokens
+    createMintToInstruction(
+      mintKeypair.publicKey,
+      associatedToken,
+      user.publicKey,
+      100 * 10 ** mintInfo.decimals,
+      user,
+      mintToProgramId
     )
-    
+
   )
 
   const txSig = await web3.sendAndConfirmTransaction(
@@ -90,40 +121,8 @@ async function main() {
   )
 
   console.log(
-    `Token Mint & Accont Creation: https://explorer.solana.com/tx/${txSig}?cluster=devnet`
+    `Token Mint, Account Creation, Mint: https://explorer.solana.com/tx/${txSig}?cluster=devnet`
   )
-
-  /*
-  Sample transaction with multiple instructions
-  
-  This creates a new Account and initializes it as a Mint Account
-  const transaction = new Transaction.add(
-    SystemProgram.createAccount({
-      fromPubkey: payer.publicKey,
-      newAccountPubkey: keypair.publicKey,
-      space: MINT_SIZE,
-      lamports,
-      programId,
-    }),
-    createInitializeMintInstruction(
-      keypair.publicKey,
-      decimals,
-      mintAuthority,
-      freezeAuthority,
-      programId
-    )
-  )
-
-  // Send the transaction
-  await sendAndConfirmTransaction(
-    connection,
-    transaction,
-    [payer, keypair],
-    confirmOptions
-  )
-
-  return keypair.publicKey
-  */
 }
 
 main()
