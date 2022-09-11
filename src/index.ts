@@ -57,9 +57,51 @@ async function main() {
     associatedTokenProgramId
   )
 
+  //const mintInfo = await token.getMint(connection, mintKeypair.publicKey, undefined, programId)
 
+  const filePath = 'assets/robot.png'
+  const fileName = 'robot.png'
+  const name = 'RoboCoin'
+  const description = 'Crypto for robots, by robots.'
+  const symbol = 'ROBO'
 
-  const mintInfo = await token.getMint(connection, mintKeypair.publicKey)
+  const buffer = fs.readFileSync(filePath)
+
+  const file = toMetaplexFile(buffer, fileName)
+
+  const metaplex = Metaplex.make(connection)
+    .use(keypairIdentity(user))
+    .use(
+      bundlrStorage({
+        address: "https://devnet.bundlr.network",
+        providerUrl: "https://api.devnet.solana.com",
+        timeout: 60000
+      })
+    )
+
+  const imageUri = await metaplex.storage().upload(file)
+  console.log(imageUri)
+
+  const { uri } = await metaplex.nfts().uploadMetadata({
+    name: name,
+    description: description,
+    image: imageUri,
+  })
+  .run()
+
+  console.log("Metadata uri:", uri)
+
+  const metadataPDA = await findMetadataPda(mintKeypair.publicKey)
+
+  const tokenMetadata = {
+    name: name,
+    symbol: symbol,
+    uri: uri,
+    sellerFeeBasisPoints: 0,
+    creators: null,
+    collection: null,
+    uses: null
+  } as DataV2
 
   const transaction = new web3.Transaction().add(
     // Create Mint Account
@@ -93,6 +135,21 @@ async function main() {
       user.publicKey,
       accountProgramId
     ),
+    createCreateMetadataAccountV2Instruction(
+      {
+        metadata: metadataPDA,
+        mint: mintKeypair.publicKey,
+        mintAuthority: user.publicKey,
+        payer: user.publicKey,
+        updateAuthority: user.publicKey
+      },
+      {
+        createMetadataAccountArgsV2: {
+          data: tokenMetadata,
+          isMutable: true
+        }
+      }
+    ),
     // Create the Associated Token Account
     createAssociatedTokenAccountInstruction(
       user.publicKey,
@@ -107,11 +164,8 @@ async function main() {
       mintKeypair.publicKey,
       associatedToken,
       user.publicKey,
-      100 * 10 ** mintInfo.decimals,
-      user,
-      mintToProgramId
+      100 * 10 ** decimals
     )
-
   )
 
   const txSig = await web3.sendAndConfirmTransaction(
